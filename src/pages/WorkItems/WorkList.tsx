@@ -6,9 +6,9 @@ import {
   Flex,
   Button,
   Dialog,
-  Spinner,
+  Spinner
 } from "@chakra-ui/react";
-import { Pencil, Plus, Trash, Eye } from "lucide-react";
+import { Pencil, Plus, Trash, Eye, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
@@ -130,6 +130,81 @@ const WorkList = () => {
     setPreviewLoading(false);
   };
 
+  /* -------------------- DOWNLOAD CSV -------------------- */
+  const handleDownloadCSV = async () => {
+    const rows: string[] = [];
+    rows.push(
+      "Work Name,Tender ID,Cost (L),Final Amount (L),Resource,Type,Unit,Quantity"
+    );
+
+    for (const work of data) {
+      const { data: resources } = await supabase
+        .from("work_resources")
+        .select(
+          "resource_name, resource_type, resource_unit, quantity_used"
+        )
+        .eq("work_item_id", work.id);
+
+      const map = new Map<string, AggregatedResource>();
+
+      resources?.forEach((r: WorkResource) => {
+        const key = `${r.resource_name}|${r.resource_type}|${r.resource_unit}`;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            resource_name: r.resource_name || "-",
+            resource_type: r.resource_type || "-",
+            resource_unit: r.resource_unit || "-",
+            quantity: Number(r.quantity_used),
+          });
+        } else {
+          map.get(key)!.quantity += Number(r.quantity_used);
+        }
+      });
+
+      if (map.size === 0) {
+        rows.push(
+          `"${work.work_name}",${work.tender_id ?? "-"},${
+            work.cost ? (work.cost / 100000).toFixed(2) : "-"
+          },${
+            work.final_amount
+              ? (work.final_amount / 100000).toFixed(2)
+              : "-"
+          },-,-,-,-`
+        );
+      } else {
+        let first = true;
+        map.forEach((r) => {
+          if (first) {
+            rows.push(
+              `"${work.work_name}",${work.tender_id ?? "-"},${
+                work.cost ? (work.cost / 100000).toFixed(2) : "-"
+              },${
+                work.final_amount
+                  ? (work.final_amount / 100000).toFixed(2)
+                  : "-"
+              },"${r.resource_name}","${r.resource_type}","${r.resource_unit}",${r.quantity}`
+            );
+            first = false;
+          } else {
+            rows.push(
+              `,,,,"${r.resource_name}","${r.resource_type}","${r.resource_unit}",${r.quantity}`
+            );
+          }
+        });
+      }
+    }
+
+    const blob = new Blob([rows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "work-resources-report.csv";
+    link.click();
+  };
+
   return (
     <Box bg="white" rounded="md" shadow="sm" p={4}>
       {/* HEADER */}
@@ -138,10 +213,17 @@ const WorkList = () => {
           Work List
         </Text>
 
-        <Button size="sm" onClick={() => navigate("/workdetails/new")}>
-          <Plus size={16} />
-          Create
-        </Button>
+        <Flex gap={2}>
+          <Button size="sm" onClick={handleDownloadCSV}>
+            <Download size={16} />
+            Download Report
+          </Button>
+
+          <Button size="sm" onClick={() => navigate("/workdetails/new")}>
+            <Plus size={16} />
+            Create
+          </Button>
+        </Flex>
       </Flex>
 
       <Table.Root size="sm">
@@ -156,7 +238,6 @@ const WorkList = () => {
             <Table.ColumnHeader textAlign="end">
               Final Amount (L)
             </Table.ColumnHeader>
-            <Table.ColumnHeader>Work Date</Table.ColumnHeader>
             <Table.ColumnHeader>Validity</Table.ColumnHeader>
             <Table.ColumnHeader>Actions</Table.ColumnHeader>
           </Table.Row>
@@ -188,11 +269,6 @@ const WorkList = () => {
                 </Table.Cell>
                 <Table.Cell textAlign="end">
                   {formatLakhs(item.final_amount)}
-                </Table.Cell>
-                <Table.Cell>
-                  {item.work_date
-                    ? new Date(item.work_date).toLocaleDateString()
-                    : "-"}
                 </Table.Cell>
                 <Table.Cell>{item.validity ?? "-"}</Table.Cell>
                 <Table.Cell>
