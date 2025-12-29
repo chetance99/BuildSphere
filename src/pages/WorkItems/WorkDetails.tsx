@@ -12,7 +12,7 @@ import {
   Tabs,
   Table,
   NativeSelect,
-  IconButton
+  IconButton 
 } from "@chakra-ui/react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -25,6 +25,7 @@ type ResourceRow = {
   type: string;
   unit: string;
   quantity: string;
+  created?: string | null;
 };
 
 export default function WorkDetails() {
@@ -65,7 +66,7 @@ export default function WorkDetails() {
   const fetchWorkResources = async (workItemId: string) => {
   const { data, error } = await supabase
     .from("work_resources")
-    .select("id, resource_type, resource_unit, quantity_used, resource_name")
+    .select("id, resource_type, resource_unit, quantity_used, resource_name, created_at")
     .eq("work_item_id", workItemId);
 
   if (error) {
@@ -80,6 +81,7 @@ export default function WorkDetails() {
       unit: r.resource_unit ?? "",
       name: r.resource_name ?? "",
       quantity: r.quantity_used?.toString() ?? "",
+      created: r.created_at ?? null,
     }))
   );
 };
@@ -160,6 +162,16 @@ export default function WorkDetails() {
     cost != null && appliedDifference != null
       ? +(cost + (cost * appliedDifference) / 100)
       : "";
+
+  const formatDate = (d?: string | null) => {
+    if (!d) return "-";
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return "-";
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const yyyy = dt.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  };
 
   /* -------------------- Save -------------------- */
   const handleSave = async () => {
@@ -249,9 +261,6 @@ export default function WorkDetails() {
       )}
 
       <Box flex="1" overflowY="auto" px={6} py={4}>
-        <Heading size="md" mb={4}>
-          {isNew ? "Create Work Item" : "Edit Work Item"}
-        </Heading>
 
         <Tabs.Root defaultValue="work">
           <Tabs.List mb={6}>
@@ -354,6 +363,7 @@ export default function WorkDetails() {
                       <Table.ColumnHeader>Type</Table.ColumnHeader>
                       <Table.ColumnHeader>Quantity</Table.ColumnHeader>
                       <Table.ColumnHeader>Unit</Table.ColumnHeader>
+                      <Table.ColumnHeader>Created</Table.ColumnHeader>
                       <Table.ColumnHeader />
                     </Table.Row>
                   </Table.Header>
@@ -389,82 +399,81 @@ export default function WorkDetails() {
                                   e.target.value
                                 )
                               }
-              >
-                <option value="" disabled hidden>
-                  Select
-                </option>
-                {resourcesMaster.map((r) => (
-                  <option key={r.name} value={r.name}>
-                    {r.name}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-            </NativeSelect.Root>
-          </Table.Cell>
+                            >
+                              <option value="" disabled hidden>
+                                Select
+                              </option>
+                              {resourcesMaster.map((r) => (
+                                <option key={r.name} value={r.name}>
+                                  {r.name}
+                                </option>
+                              ))}
+                            </NativeSelect.Field>
+                          </NativeSelect.Root>
+                        </Table.Cell>
 
-          <Table.Cell>
-            <NativeSelect.Root disabled={!resource}>
-              <NativeSelect.Field
-                value={row.type}
-                onChange={(e) =>
-                  updateResourceRow(index, "type", e.target.value)
-                }
-              >
-                <option value="" disabled hidden>
-                  Select
-                </option>
-                {types.map((t: string) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-            </NativeSelect.Root>
-          </Table.Cell>
+                        <Table.Cell>
+                          <NativeSelect.Root disabled={!resource}>
+                            <NativeSelect.Field
+                              value={row.type}
+                              onChange={(e) =>
+                                updateResourceRow(index, "type", e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Select
+                              </option>
+                              {types.map((t: string) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </NativeSelect.Field>
+                          </NativeSelect.Root>
+                        </Table.Cell>
 
-          <Table.Cell>
-            <Input
-              type="number"
-              value={row.quantity}
-              onChange={(e) =>
-                updateResourceRow(index, "quantity", e.target.value)
-              }
-            />
-          </Table.Cell>
+                        <Table.Cell>
+                          <Input
+                            type="number"
+                            value={row.quantity}
+                            onChange={(e) =>
+                              updateResourceRow(index, "quantity", e.target.value)
+                            }
+                          />
+                        </Table.Cell>
 
-          <Table.Cell>
-            <NativeSelect.Root disabled={!resource}>
-              <NativeSelect.Field
-                value={row.unit}
-                onChange={(e) =>
-                  updateResourceRow(index, "unit", e.target.value)
-                }
-              >
-                <option value="" disabled hidden>
-                  Select
-                </option>
-                {units.map((u: string) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </NativeSelect.Field>
-            </NativeSelect.Root>
-          </Table.Cell>
+                        <Table.Cell>
+                          <NativeSelect.Root disabled={!resource}>
+                            <NativeSelect.Field
+                              value={row.unit}
+                              onChange={(e) =>
+                                updateResourceRow(index, "unit", e.target.value)
+                              }
+                            >
+                              <option value="" disabled hidden>
+                                Select
+                              </option>
+                              {units.map((u: string) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </NativeSelect.Field>
+                          </NativeSelect.Root>
+                        </Table.Cell>
 
-          
+                        <Table.Cell>{formatDate(row.created)}</Table.Cell>
 
-          <Table.Cell>
-            <IconButton
-              aria-label="Delete"
-              size="sm"
-              variant="ghost"
-              colorScheme="red"
-              onClick={() => removeResourceRow(index)}
-            >
-              <Trash2 size={16} />
-            </IconButton>
-          </Table.Cell>
+                        <Table.Cell>
+                          <IconButton
+                            aria-label="Delete"
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => removeResourceRow(index)}> 
+                            <Trash2 size={16} />
+                            </IconButton>                                            
+                        </Table.Cell>
         </Table.Row>
       );
     })
