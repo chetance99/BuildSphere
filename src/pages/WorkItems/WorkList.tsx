@@ -130,69 +130,79 @@ const WorkList = () => {
     setPreviewLoading(false);
   };
 
-  /* -------------------- DOWNLOAD CSV -------------------- */
-  const handleDownloadCSV = async () => {
+  /* -------------------- CSV BUILDER (REUSED) -------------------- */
+  const buildCSVForWork = async (work: WorkItem) => {
+    const rows: string[] = [];
+
+    const { data: resources } = await supabase
+      .from("work_resources")
+      .select(
+        "resource_name, resource_type, resource_unit, quantity_used"
+      )
+      .eq("work_item_id", work.id);
+
+    const map = new Map<string, AggregatedResource>();
+
+    resources?.forEach((r: WorkResource) => {
+      const key = `${r.resource_name}|${r.resource_type}|${r.resource_unit}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          resource_name: r.resource_name || "-",
+          resource_type: r.resource_type || "-",
+          resource_unit: r.resource_unit || "-",
+          quantity: Number(r.quantity_used),
+        });
+      } else {
+        map.get(key)!.quantity += Number(r.quantity_used);
+      }
+    });
+
+    if (map.size === 0) {
+      rows.push(
+        `"${work.work_name}",${work.tender_id ?? "-"},${
+          work.cost ? (work.cost / 100000).toFixed(2) : "-"
+        },${
+          work.final_amount
+            ? (work.final_amount / 100000).toFixed(2)
+            : "-"
+        },-,-,-,-`
+      );
+    } else {
+      let first = true;
+      map.forEach((r) => {
+        if (first) {
+          rows.push(
+            `"${work.work_name}",${work.tender_id ?? "-"},${
+              work.cost ? (work.cost / 100000).toFixed(2) : "-"
+            },${
+              work.final_amount
+                ? (work.final_amount / 100000).toFixed(2)
+                : "-"
+            },"${r.resource_name}","${r.resource_type}",${r.quantity},"${r.resource_unit}"`
+          );
+          first = false;
+        } else {
+          rows.push(
+            `,,,,"${r.resource_name}","${r.resource_type}",${r.quantity},"${r.resource_unit}"`
+          );
+        }
+      });
+    }
+
+    return rows;
+  };
+
+  /* -------------------- DOWNLOAD ALL -------------------- */
+  const handleDownloadAll = async () => {
     const rows: string[] = [];
     rows.push(
       "Work Name,Tender ID,Cost (L),Final Amount (L),Resource,Type,Unit,Quantity"
     );
 
     for (const work of data) {
-      const { data: resources } = await supabase
-        .from("work_resources")
-        .select(
-          "resource_name, resource_type, resource_unit, quantity_used"
-        )
-        .eq("work_item_id", work.id);
-
-      const map = new Map<string, AggregatedResource>();
-
-      resources?.forEach((r: WorkResource) => {
-        const key = `${r.resource_name}|${r.resource_type}|${r.resource_unit}`;
-
-        if (!map.has(key)) {
-          map.set(key, {
-            resource_name: r.resource_name || "-",
-            resource_type: r.resource_type || "-",
-            resource_unit: r.resource_unit || "-",
-            quantity: Number(r.quantity_used),
-          });
-        } else {
-          map.get(key)!.quantity += Number(r.quantity_used);
-        }
-      });
-
-      if (map.size === 0) {
-        rows.push(
-          `"${work.work_name}",${work.tender_id ?? "-"},${
-            work.cost ? (work.cost / 100000).toFixed(2) : "-"
-          },${
-            work.final_amount
-              ? (work.final_amount / 100000).toFixed(2)
-              : "-"
-          },-,-,-,-`
-        );
-      } else {
-        let first = true;
-        map.forEach((r) => {
-          if (first) {
-            rows.push(
-              `"${work.work_name}",${work.tender_id ?? "-"},${
-                work.cost ? (work.cost / 100000).toFixed(2) : "-"
-              },${
-                work.final_amount
-                  ? (work.final_amount / 100000).toFixed(2)
-                  : "-"
-              },"${r.resource_name}","${r.resource_type}","${r.resource_unit}",${r.quantity}`
-            );
-            first = false;
-          } else {
-            rows.push(
-              `,,,,"${r.resource_name}","${r.resource_type}","${r.resource_unit}",${r.quantity}`
-            );
-          }
-        });
-      }
+      const workRows = await buildCSVForWork(work);
+      rows.push(...workRows);
     }
 
     const blob = new Blob([rows.join("\n")], {
@@ -201,7 +211,27 @@ const WorkList = () => {
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "work-resources-report.csv";
+    link.download = "all-work-report.csv";
+    link.click();
+  };
+
+  /* -------------------- DOWNLOAD SINGLE -------------------- */
+  const handleDownloadRow = async (work: WorkItem) => {
+    const rows: string[] = [];
+    rows.push(
+      "Work Name,Tender ID,Cost (L),Final Amount (L),Resource,Type,Quantity,Unit"
+    );
+
+    const workRows = await buildCSVForWork(work);
+    rows.push(...workRows);
+
+    const blob = new Blob([rows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${work.work_name}-report.csv`;
     link.click();
   };
 
@@ -214,9 +244,9 @@ const WorkList = () => {
         </Text>
 
         <Flex gap={2}>
-          <Button size="sm" onClick={handleDownloadCSV}>
+          <Button size="sm" onClick={handleDownloadAll}>
             <Download size={16} />
-            Download Report
+            Download All
           </Button>
 
           <Button size="sm" onClick={() => navigate("/workdetails/new")}>
@@ -288,6 +318,15 @@ const WorkList = () => {
                     onClick={() => handleEdit(item)}
                   >
                     <Pencil size={16} />
+                  </IconButton>
+
+                  <IconButton
+                    aria-label="Download"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDownloadRow(item)}
+                  >
+                    <Download size={16} />
                   </IconButton>
 
                   <IconButton
