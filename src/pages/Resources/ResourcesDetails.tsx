@@ -7,7 +7,7 @@ import {
   HStack,
   Text,
   SimpleGrid,
-  Flex,
+  Flex
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";

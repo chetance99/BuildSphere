@@ -4,9 +4,9 @@ import {
   Heading,
   Input,
   Stack,
-  Text,
   Card,
 } from "@chakra-ui/react";
+import bgImage from "../images/background-bg.jpg";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -37,8 +37,21 @@ const Login = () => {
   };
 
   return (
-    <Box minH="100vh" display="flex" alignItems="center" justifyContent="center">
-      <Card.Root w="400px">
+    <Box
+      minH="100vh"
+      backgroundImage={`linear-gradient(90deg, rgba(15,72,102,0.45) 0%, rgba(109,58,167,0.45) 100%), url(${bgImage})`}
+      backgroundSize="cover"
+      backgroundPosition="center"
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+    >
+      <Card.Root
+        w="400px"
+        bg="whiteAlpha.900"
+        backdropFilter="blur(6px)"
+        boxShadow="2xl"
+      >
         <Card.Body>
           <form onSubmit={handleSubmit}>
             <Stack gap={4}>

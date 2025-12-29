@@ -3,7 +3,7 @@ import {
   Flex,
   Heading,
   Button,
-  HStack,
+  HStack
 } from "@chakra-ui/react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";

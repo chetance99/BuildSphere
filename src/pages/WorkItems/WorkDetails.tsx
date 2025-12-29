@@ -12,7 +12,7 @@ import {
   Tabs,
   Table,
   NativeSelect,
-  IconButton,
+  IconButton
 } from "@chakra-ui/react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";

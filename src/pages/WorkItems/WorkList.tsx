@@ -4,7 +4,7 @@ import {
   IconButton,
   Text,
   Flex,
-  Button,
+  Button
 } from "@chakra-ui/react";
 import { Pencil, Plus, Trash } from "lucide-react";
 import { useEffect, useState } from "react";
