@@ -27,6 +27,9 @@ type WorkItem = {
 const truncate = (text?: string, max = 22) =>
   text && text.length > max ? `${text.slice(0, max)}...` : text;
 
+const formatLakhs = (value?: number | null) =>
+  value != null ? `₹${(value / 100000).toFixed(2)} L` : "-";
+
 /* -------------------- Component -------------------- */
 const WorkList = () => {
   const [data, setData] = useState<WorkItem[]>([]);
@@ -91,9 +94,9 @@ const WorkList = () => {
           <Table.Row>
             <Table.ColumnHeader>Work Name</Table.ColumnHeader>
             <Table.ColumnHeader>Tender ID</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Cost</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Applied Diff</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Final Amount</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Cost (L)</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Excess/Less</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Final Amount (L)</Table.ColumnHeader>
             <Table.ColumnHeader>Work Date</Table.ColumnHeader>
             <Table.ColumnHeader>Validity</Table.ColumnHeader>
             <Table.ColumnHeader>Actions</Table.ColumnHeader>
@@ -114,13 +117,11 @@ const WorkList = () => {
               <Table.Row key={item.id}>
                 <Table.Cell title={item.work_name}>{truncate(item.work_name)}</Table.Cell>
                 <Table.Cell>{item.tender_id ?? "-"}</Table.Cell>
-                <Table.Cell textAlign="end">{item.cost ? `₹${item.cost.toLocaleString()}` : "-"}</Table.Cell>
+                <Table.Cell textAlign="end">{formatLakhs(item.cost)}</Table.Cell>
                 <Table.Cell textAlign="end">
                   {item.applied_difference ? `${item.applied_difference.toLocaleString()}%` : "-"}
                 </Table.Cell>
-                <Table.Cell textAlign="end">
-                  {item.final_amount ? `₹${item.final_amount.toLocaleString()}` : "-"}
-                </Table.Cell>
+                <Table.Cell textAlign="end">{formatLakhs(item.final_amount)}</Table.Cell>
                 <Table.Cell>{item.work_date ? new Date(item.work_date).toLocaleDateString() : "-"}</Table.Cell>
                 <Table.Cell>{item.validity ?? "-"}</Table.Cell>
                 <Table.Cell>

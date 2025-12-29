@@ -7,7 +7,7 @@ import {
   HStack,
   Text,
   SimpleGrid,
-  Flex
+  Flex,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
@@ -21,6 +21,11 @@ export default function ResourcesDetails() {
   const [resourceName, setResourceName] = useState("");
   const [types, setTypes] = useState<string[]>([""]);
   const [units, setUnits] = useState<string[]>([""]);
+  const [isReferenced, setIsReferenced] = useState(false);
+
+  // Track original length to detect new additions
+  const [initialTypesCount, setInitialTypesCount] = useState(0);
+  const [initialUnitsCount, setInitialUnitsCount] = useState(0);
 
   /* ---------------- Load existing resource ---------------- */
   useEffect(() => {
@@ -39,9 +44,25 @@ export default function ResourcesDetails() {
       return;
     }
 
+    const loadedTypes = data.types ? data.types.split(",") : [""];
+    const loadedUnits = data.units ? data.units.split(",") : [""];
+
     setResourceName(data.name);
-    setTypes(data.types ? data.types.split(",") : [""]);
-    setUnits(data.units ? data.units.split(",") : [""]);
+    setTypes(loadedTypes);
+    setUnits(loadedUnits);
+    setInitialTypesCount(loadedTypes.length);
+    setInitialUnitsCount(loadedUnits.length);
+
+    // 🔍 Check reference in work_resources
+    const { data: used } = await supabase
+      .from("work_resources")
+      .select("id")
+      .eq("resource_name", data.name)
+      .limit(1);
+
+    if (used && used.length > 0) {
+      setIsReferenced(true);
+    }
   };
 
   /* ---------------- Save ---------------- */
@@ -86,12 +107,31 @@ export default function ResourcesDetails() {
           {isNew ? "Add Resource" : "Edit Resource"}
         </Heading>
 
+        {/* ⚠️ WARNING */}
+        {isReferenced && (
+          <Box
+            bg="yellow.100"
+            border="1px solid"
+            borderColor="yellow.300"
+            rounded="md"
+            p={3}
+            mb={6}
+          >
+            <Text fontSize="sm" color="yellow.800">
+              This resource is already referenced in work items.
+              <br />
+              You can only add new Types or Units. Existing values cannot be
+              edited.
+            </Text>
+          </Box>
+        )}
+
         {/* Resource Name */}
         <Stack gap={2} mb={6}>
           <Text fontWeight="600">Resource Name</Text>
           <Input
-            width="100%"
             value={resourceName}
+            readOnly={isReferenced}
             onChange={(e) => setResourceName(e.target.value)}
             placeholder="Cement / Steel"
           />
@@ -108,6 +148,7 @@ export default function ResourcesDetails() {
               key={index}
               value={type}
               placeholder="PPC / OPC / 8mm"
+              readOnly={isReferenced && index < initialTypesCount}
               onChange={(e) =>
                 updateArrayValue(types, index, e.target.value, setTypes)
               }
@@ -115,11 +156,7 @@ export default function ResourcesDetails() {
           ))}
         </SimpleGrid>
 
-        <Button
-          mt={3}
-          size="sm"
-          onClick={() => setTypes([...types, ""])}
-        >
+        <Button mt={3} size="sm" onClick={() => setTypes([...types, ""])}>
           + Add Type
         </Button>
 
@@ -134,6 +171,7 @@ export default function ResourcesDetails() {
               key={index}
               value={unit}
               placeholder="Bag / Tonne"
+              readOnly={isReferenced && index < initialUnitsCount}
               onChange={(e) =>
                 updateArrayValue(units, index, e.target.value, setUnits)
               }
@@ -141,11 +179,7 @@ export default function ResourcesDetails() {
           ))}
         </SimpleGrid>
 
-        <Button
-          mt={3}
-          size="sm"
-          onClick={() => setUnits([...units, ""])}
-        >
+        <Button mt={3} size="sm" onClick={() => setUnits([...units, ""])}>
           + Add Unit
         </Button>
       </Box>

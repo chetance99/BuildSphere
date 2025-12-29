@@ -38,7 +38,7 @@ const DashboardLayout = () => {
     borderColor="gray.200"
     flexShrink={0}
   >
-    <Text fontWeight="bold">MyApp</Text>
+    <Text fontWeight="bold">Sai Surya Construction</Text>
     <NavLink to="/dashboard">Dashboard</NavLink>
     <NavLink to="/worklist">Work List</NavLink>
     <NavLink to="/resources">Resources</NavLink>
@@ -58,10 +58,10 @@ const DashboardLayout = () => {
       zIndex={1000}
       flexShrink={0}
     >
-      <Text fontWeight="600">Dashboard</Text>
+      <Text fontWeight="600" color="white">Build Sphere</Text>
 
       <HStack gap={3}>
-        <Text>{email}</Text>
+        <Text color="white">{email}</Text>
         <Avatar.Root size="sm">{initials}</Avatar.Root>
         <Button
           size="sm"
