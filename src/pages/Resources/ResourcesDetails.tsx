@@ -8,6 +8,7 @@ import {
   Text,
   SimpleGrid,
   Flex,
+  Field,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
@@ -22,6 +23,7 @@ export default function ResourcesDetails() {
   const [types, setTypes] = useState<string[]>([""]);
   const [units, setUnits] = useState<string[]>([""]);
   const [isReferenced, setIsReferenced] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Track original length to detect new additions
   const [initialTypesCount, setInitialTypesCount] = useState(0);
@@ -67,6 +69,12 @@ export default function ResourcesDetails() {
 
   /* ---------------- Save ---------------- */
   const handleSave = async () => {
+    if (!resourceName.trim()) {
+      setErrors({ resourceName: "Resource Name is required" });
+      return;
+    }
+    setErrors({});
+
     const payload: any = {
       name: resourceName.trim(),
       types: types.filter(Boolean).join(","),
@@ -103,10 +111,6 @@ export default function ResourcesDetails() {
     <Flex direction="column" h="100%">
       {/* ===== SCROLLABLE CONTENT ===== */}
       <Box flex="1" overflowY="auto" px={6} py={4}>
-        <Heading size="md" mb={6}>
-          {isNew ? "Add Resource" : "Edit Resource"}
-        </Heading>
-
         {/* ⚠️ WARNING */}
         {isReferenced && (
           <Box
@@ -128,13 +132,23 @@ export default function ResourcesDetails() {
 
         {/* Resource Name */}
         <Stack gap={2} mb={6}>
-          <Text fontWeight="600">Resource Name</Text>
-          <Input
-            value={resourceName}
-            readOnly={isReferenced}
-            onChange={(e) => setResourceName(e.target.value)}
-            placeholder="Cement / Steel"
-          />
+          <Field.Root invalid={!!errors.resourceName}>
+            <Field.Label>
+              Resource Name <span style={{ color: "red" }}>*</span>
+            </Field.Label>
+            <Input
+              value={resourceName}
+              readOnly={isReferenced}
+              onChange={(e) => {
+                setResourceName(e.target.value);
+                if (errors.resourceName) {
+                  setErrors((prev) => ({ ...prev, resourceName: "" }));
+                }
+              }}
+              placeholder="Cement / Steel"
+            />
+            <Field.ErrorText>{errors.resourceName}</Field.ErrorText>
+          </Field.Root>
         </Stack>
 
         {/* Types */}
