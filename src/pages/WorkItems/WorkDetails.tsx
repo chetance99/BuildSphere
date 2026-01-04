@@ -25,7 +25,16 @@ type ResourceRow = {
   unit: string;
   quantity: string;
   created?: string | null;
+  resource_added_date?: string;
 };
+
+type BillRow = {
+  id?: string;
+  description: string;
+  amount: string;
+  bill_date: string;
+};
+
 
 export default function WorkDetails() {
   const navigate = useNavigate();
@@ -52,6 +61,9 @@ export default function WorkDetails() {
   const [resourcesMaster, setResourcesMaster] = useState<any[]>([]);
   const [resourceRows, setResourceRows] = useState<ResourceRow[]>([]);
 
+  /* -------------------- Bill State -------------------- */
+  const [billRows, setBillRows] = useState<BillRow[]>([]);
+
   /* -------------------- Prefill Work (Edit Mode) -------------------- */
   useEffect(() => {
     if (isNew) return;
@@ -60,18 +72,42 @@ export default function WorkDetails() {
     if (stateItem) {
       fillForm(stateItem);
       fetchWorkResources(stateItem.id);
+      fetchWorkBills(stateItem.id);
     } else {
       fetchWorkItem();
     }
   }, [isNew, id]);
 
-  const fetchWorkResources = async (workItemId: string) => {
+  const fetchWorkBills = async (workItemId: string) => {
     const { data, error } = await supabase
-      .from("work_resources")
-      .select(
-        "id, resource_type, resource_unit, quantity_used, resource_name, created_at"
-      )
+      .from("work_bills")
+      .select("id, description, amount, bill_date")
       .eq("work_item_id", workItemId);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setBillRows(
+      (data || []).map((b) => ({
+        id: b.id,
+        description: b.description ?? "",
+        amount: b.amount?.toString() ?? "",
+        bill_date: b.bill_date ?? new Date().toISOString().slice(0, 10),
+      }))
+    );
+  };
+
+
+  const fetchWorkResources = async (workItemId: string) => {
+  const { data, error } = await supabase
+  .from("work_resources")
+  .select(
+    "id, resource_type, resource_unit, quantity_used, resource_name, created_at, resource_added_date"
+  )
+  .eq("work_item_id", workItemId);
+
 
     if (error) {
       console.error(error);
@@ -86,8 +122,11 @@ export default function WorkDetails() {
         name: r.resource_name ?? "",
         quantity: r.quantity_used?.toString() ?? "",
         created: r.created_at ?? null,
+        resource_added_date:
+          r.resource_added_date ?? new Date().toISOString().slice(0, 10), // ✅ ADD
       }))
     );
+
   };
 
   const fillForm = (w: any) => {
@@ -115,6 +154,7 @@ export default function WorkDetails() {
 
     fillForm(data);
     fetchWorkResources(data.id);
+    fetchWorkBills(data.id);
   };
 
   /* -------------------- Fetch Resources Master -------------------- */
@@ -135,9 +175,16 @@ export default function WorkDetails() {
   /* -------------------- Resource Helpers -------------------- */
   const addResourceRow = () => {
     setResourceRows([
-      ...resourceRows,
-      { type: "", unit: "", quantity: "", name: "" },
-    ]);
+    ...resourceRows,
+    {
+      type: "",
+      unit: "",
+      quantity: "",
+      name: "",
+      created: new Date().toISOString().slice(0, 10),
+      resource_added_date: new Date().toISOString().slice(0, 10)
+    },
+  ]);
   };
 
   const updateResourceRow = (
@@ -158,6 +205,32 @@ export default function WorkDetails() {
 
   const removeResourceRow = (index: number) => {
     setResourceRows(resourceRows.filter((_, i) => i !== index));
+  };
+
+  /* -------------------- Bill Helpers -------------------- */
+  const addBillRow = () => {
+    setBillRows([
+      ...billRows,
+      {
+        description: "",
+        amount: "",
+        bill_date: new Date().toISOString().slice(0, 10),
+      },
+    ]);
+  };
+
+  const updateBillRow = (
+    index: number,
+    key: keyof BillRow,
+    value: string
+  ) => {
+    const updated = [...billRows];
+    updated[index][key] = value;
+    setBillRows(updated);
+  };
+
+  const removeBillRow = (index: number) => {
+    setBillRows(billRows.filter((_, i) => i !== index));
   };
 
   /* -------------------- Derived -------------------- */
@@ -250,6 +323,7 @@ export default function WorkDetails() {
         resource_unit: row.unit,
         resource_name: row.name,
         quantity_used: Number(row.quantity),
+        resource_added_date: row.resource_added_date || new Date().toISOString().slice(0, 10)
       });
 
       if (resErr) {
@@ -258,6 +332,28 @@ export default function WorkDetails() {
         return;
       }
     }
+
+    // 4️⃣ Delete existing bills (edit mode)
+    await supabase.from("work_bills").delete().eq("work_item_id", workId);
+
+    // 5️⃣ Insert each bill row
+    for (const row of billRows) {
+      if (!row.amount) continue;
+
+      const { error: billErr } = await supabase.from("work_bills").insert({
+        work_item_id: workId,
+        description: row.description,
+        amount: Number(row.amount),
+        bill_date: row.bill_date || new Date().toISOString().slice(0, 10),
+      });
+
+      if (billErr) {
+        setSaving(false);
+        alert(billErr.message);
+        return;
+      }
+    }
+
 
     setSaving(false);
     navigate("/worklist");
@@ -418,7 +514,7 @@ export default function WorkDetails() {
                       <Table.ColumnHeader>Type</Table.ColumnHeader>
                       <Table.ColumnHeader>Quantity</Table.ColumnHeader>
                       <Table.ColumnHeader>Unit</Table.ColumnHeader>
-                      <Table.ColumnHeader>Created</Table.ColumnHeader>
+                      <Table.ColumnHeader>Resource Added Date</Table.ColumnHeader>
                       <Table.ColumnHeader />
                     </Table.Row>
                   </Table.Header>
@@ -536,9 +632,15 @@ export default function WorkDetails() {
                                 </NativeSelect.Field>
                               </NativeSelect.Root>
                             </Table.Cell>
-
-                            <Table.Cell>{formatDate(row.created)}</Table.Cell>
-
+                            <Table.Cell>
+                              <Input
+                                type="date"
+                                value={row.resource_added_date ?? ""}
+                                onChange={(e) =>
+                                  updateResourceRow(index, "resource_added_date", e.target.value)
+                                }
+                              />
+                            </Table.Cell>
                             <Table.Cell>
                               <IconButton
                                 aria-label="Delete"
@@ -562,7 +664,91 @@ export default function WorkDetails() {
           {/* ---------------- FINANCIALS ---------------- */}
           {!isNew && (
             <Tabs.Content value="financials">
-              <Box p={6} textAlign="center">Welcome to financial details</Box>
+              <Stack gap={4}>
+                <HStack justify="flex-end">
+                  <Button size="sm" onClick={addBillRow}>
+                    Add Bill
+                  </Button>
+                </HStack>
+
+                <Table.Root size="sm">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeader>Description</Table.ColumnHeader>
+                      <Table.ColumnHeader>Amount</Table.ColumnHeader>
+                      <Table.ColumnHeader>Bill Date</Table.ColumnHeader>
+                      <Table.ColumnHeader />
+                    </Table.Row>
+                  </Table.Header>
+
+                  <Table.Body>
+                    {billRows.length === 0 ? (
+                      <Table.Row>
+                        <Table.Cell
+                          colSpan={4}
+                          textAlign="center"
+                          color="gray.500"
+                        >
+                          No items to display
+                        </Table.Cell>
+                      </Table.Row>
+                    ) : (
+                      billRows.map((row, index) => (
+                        <Table.Row key={index}>
+                          <Table.Cell>
+                            <Input
+                              value={row.description}
+                              onChange={(e) =>
+                                updateBillRow(
+                                  index,
+                                  "description",
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </Table.Cell>
+
+                          <Table.Cell>
+                            <Input
+                              type="number"
+                              value={row.amount}
+                              onChange={(e) =>
+                                updateBillRow(index, "amount", e.target.value)
+                              }
+                            />
+                          </Table.Cell>
+
+                          <Table.Cell>
+                            <Input
+                              type="date"
+                              value={row.bill_date}
+                              onChange={(e) =>
+                                updateBillRow(
+                                  index,
+                                  "bill_date",
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </Table.Cell>
+
+                          <Table.Cell>
+                            <IconButton
+                              aria-label="Delete"
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="red"
+                              onClick={() => removeBillRow(index)}
+                            >
+                              <Trash2 size={16} />
+                            </IconButton>
+                          </Table.Cell>
+                        </Table.Row>
+                      ))
+                    )}
+                  </Table.Body>
+                </Table.Root>
+              </Stack>
             </Tabs.Content>
           )}
         </Tabs.Root>
