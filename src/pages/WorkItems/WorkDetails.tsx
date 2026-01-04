@@ -30,9 +30,11 @@ type ResourceRow = {
 
 type BillRow = {
   id?: string;
-  description: string;
-  amount: string;
-  bill_date: string;
+  submitted_bill: string;
+  submitted_date: string;
+  approved_bill: string;
+  approved_date: string;
+  pending_amount: string;
 };
 
 
@@ -78,26 +80,48 @@ export default function WorkDetails() {
     }
   }, [isNew, id]);
 
+  const financeTotals = billRows.reduce(
+  (acc, row) => {
+    const submitted = Number(row.submitted_bill || 0);
+    const approved = Number(row.approved_bill || 0);
+    const pending = Number(row.pending_amount || 0);
+
+    acc.submitted += submitted;
+    acc.approved += approved;
+    acc.pending += pending;
+
+    return acc;
+  },
+  { submitted: 0, approved: 0, pending: 0 }
+);
+
   const fetchWorkBills = async (workItemId: string) => {
-    const { data, error } = await supabase
-      .from("work_bills")
-      .select("id, description, amount, bill_date")
-      .eq("work_item_id", workItemId);
+  const { data, error } = await supabase
+    .from("work_finances")
+    .select(
+      "id, submitted_bill, approved_bill, pending_amount, submitted_date, approved_date"
+    )
+    .eq("work_item_id", workItemId);
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-    setBillRows(
-      (data || []).map((b) => ({
-        id: b.id,
-        description: b.description ?? "",
-        amount: b.amount?.toString() ?? "",
-        bill_date: b.bill_date ?? new Date().toISOString().slice(0, 10),
-      }))
-    );
-  };
+  setBillRows(
+    (data || []).map((b) => ({
+      id: b.id,
+      submitted_bill: b.submitted_bill?.toString() ?? "",
+      approved_bill: b.approved_bill?.toString() ?? "",
+      pending_amount: b.pending_amount?.toString() ?? "",
+      submitted_date:
+        b.submitted_date ?? new Date().toISOString().slice(0, 10),
+      approved_date: b.approved_date ?? "",
+    }))
+  );
+};
+
+  
 
 
   const fetchWorkResources = async (workItemId: string) => {
@@ -209,25 +233,35 @@ export default function WorkDetails() {
 
   /* -------------------- Bill Helpers -------------------- */
   const addBillRow = () => {
-    setBillRows([
-      ...billRows,
-      {
-        description: "",
-        amount: "",
-        bill_date: new Date().toISOString().slice(0, 10),
-      },
-    ]);
-  };
+  setBillRows([
+    ...billRows,
+    {
+      submitted_bill: "",
+      submitted_date: new Date().toISOString().slice(0, 10),
+      approved_bill: "",
+      approved_date: "",
+      pending_amount: "",
+    },
+  ]);
+};
+
 
   const updateBillRow = (
-    index: number,
-    key: keyof BillRow,
-    value: string
-  ) => {
-    const updated = [...billRows];
-    updated[index][key] = value;
-    setBillRows(updated);
-  };
+  index: number,
+  key: keyof BillRow,
+  value: string
+) => {
+  const updated = [...billRows];
+  updated[index][key] = value;
+
+  const submitted = Number(updated[index].submitted_bill || 0);
+  const approved = Number(updated[index].approved_bill || 0);
+
+  updated[index].pending_amount = (submitted - approved).toString();
+
+  setBillRows(updated);
+};
+
 
   const removeBillRow = (index: number) => {
     setBillRows(billRows.filter((_, i) => i !== index));
@@ -333,18 +367,24 @@ export default function WorkDetails() {
       }
     }
 
-    // 4️⃣ Delete existing bills (edit mode)
-    await supabase.from("work_bills").delete().eq("work_item_id", workId);
+    await supabase.from("work_finances").delete().eq("work_item_id", workId);
 
-    // 5️⃣ Insert each bill row
     for (const row of billRows) {
-      if (!row.amount) continue;
+      if (!row.submitted_bill && !row.approved_bill) continue;
 
-      const { error: billErr } = await supabase.from("work_bills").insert({
+      const { error: billErr } = await supabase.from("work_finances").insert({
         work_item_id: workId,
-        description: row.description,
-        amount: Number(row.amount),
-        bill_date: row.bill_date || new Date().toISOString().slice(0, 10),
+        submitted_bill: row.submitted_bill
+          ? Number(row.submitted_bill)
+          : null,
+        approved_bill: row.approved_bill
+          ? Number(row.approved_bill)
+          : null,
+        pending_amount: row.pending_amount
+          ? Number(row.pending_amount)
+          : null,
+        submitted_date: row.submitted_date || null,
+        approved_date: row.approved_date || null,
       });
 
       if (billErr) {
@@ -353,6 +393,7 @@ export default function WorkDetails() {
         return;
       }
     }
+
 
 
     setSaving(false);
@@ -665,18 +706,37 @@ export default function WorkDetails() {
           {!isNew && (
             <Tabs.Content value="financials">
               <Stack gap={4}>
-                <HStack justify="flex-end">
-                  <Button size="sm" onClick={addBillRow}>
-                    Add Bill
-                  </Button>
-                </HStack>
+                <HStack justify="space-between" flexDirection="row-reverse">
+              <Button size="sm" onClick={addBillRow}>
+                Add Bill
+              </Button>
+
+              <Box
+                border="1px solid"
+                borderColor="gray.300"
+                borderRadius="md"
+                px={3}
+                py={2}
+                fontSize="sm"
+                bg="gray.50"
+              >
+                <Stack gap={1}>
+                  <Box>Submitted: <strong>{financeTotals.submitted.toFixed(2)}</strong></Box>
+                  <Box>Approved: <strong>{financeTotals.approved.toFixed(2)}</strong></Box>
+                  <Box>Pending: <strong>{financeTotals.pending.toFixed(2)}</strong></Box>
+                </Stack>
+              </Box>
+            </HStack>
+
 
                 <Table.Root size="sm">
                   <Table.Header>
                     <Table.Row>
-                      <Table.ColumnHeader>Description</Table.ColumnHeader>
-                      <Table.ColumnHeader>Amount</Table.ColumnHeader>
-                      <Table.ColumnHeader>Bill Date</Table.ColumnHeader>
+                      <Table.ColumnHeader>Submitted Bill</Table.ColumnHeader>
+                      <Table.ColumnHeader>Submitted Date</Table.ColumnHeader>
+                      <Table.ColumnHeader>Approved Bill</Table.ColumnHeader>
+                      <Table.ColumnHeader>Approved Date</Table.ColumnHeader>
+                      <Table.ColumnHeader>Pending Bill</Table.ColumnHeader>
                       <Table.ColumnHeader />
                     </Table.Row>
                   </Table.Header>
@@ -696,14 +756,21 @@ export default function WorkDetails() {
                       billRows.map((row, index) => (
                         <Table.Row key={index}>
                           <Table.Cell>
+  <Input
+    type="number"
+    value={row.submitted_bill}
+    onChange={(e) =>
+      updateBillRow(index, "submitted_bill", e.target.value)
+    }
+  />
+                          </Table.Cell>
+
+                          <Table.Cell>
                             <Input
-                              value={row.description}
+                              type="date"
+                              value={row.submitted_date}
                               onChange={(e) =>
-                                updateBillRow(
-                                  index,
-                                  "description",
-                                  e.target.value
-                                )
+                                updateBillRow(index, "submitted_date", e.target.value)
                               }
                             />
                           </Table.Cell>
@@ -711,9 +778,9 @@ export default function WorkDetails() {
                           <Table.Cell>
                             <Input
                               type="number"
-                              value={row.amount}
+                              value={row.approved_bill}
                               onChange={(e) =>
-                                updateBillRow(index, "amount", e.target.value)
+                                updateBillRow(index, "approved_bill", e.target.value)
                               }
                             />
                           </Table.Cell>
@@ -721,15 +788,15 @@ export default function WorkDetails() {
                           <Table.Cell>
                             <Input
                               type="date"
-                              value={row.bill_date}
+                              value={row.approved_date}
                               onChange={(e) =>
-                                updateBillRow(
-                                  index,
-                                  "bill_date",
-                                  e.target.value
-                                )
+                                updateBillRow(index, "approved_date", e.target.value)
                               }
                             />
+                          </Table.Cell>
+
+                          <Table.Cell>
+                            <Input value={row.pending_amount} readOnly />
                           </Table.Cell>
 
                           <Table.Cell>
