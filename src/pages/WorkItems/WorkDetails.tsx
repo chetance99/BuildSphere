@@ -285,9 +285,11 @@ export default function WorkDetails() {
             {!isNew && (
               <Tabs.Trigger value="resources">Resource Details</Tabs.Trigger>
             )}
+            {!isNew && (
+              <Tabs.Trigger value="financials">Financials</Tabs.Trigger>
+            )}
           </Tabs.List>
-
-          {/* ---------------- WORK DETAILS ---------------- */}
+          {/* ---------------- WORK DETAILS ---------------- */
           <Tabs.Content value="work">
             <Stack gap={5}>
               <Field.Root invalid={!!errors.workName}>
@@ -398,7 +400,7 @@ export default function WorkDetails() {
               </SimpleGrid>
             </Stack>
           </Tabs.Content>
-
+          }
           {/* ---------------- RESOURCE DETAILS ---------------- */}
           {!isNew && (
             <Tabs.Content value="resources">
@@ -555,6 +557,12 @@ export default function WorkDetails() {
                   </Table.Body>
                 </Table.Root>
               </Stack>
+            </Tabs.Content>
+          )}
+          {/* ---------------- FINANCIALS ---------------- */}
+          {!isNew && (
+            <Tabs.Content value="financials">
+              <Box p={6} textAlign="center">Welcome to financial details</Box>
             </Tabs.Content>
           )}
         </Tabs.Root>
