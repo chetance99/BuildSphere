@@ -8,10 +8,11 @@ import {
   Dialog,
   Spinner
 } from "@chakra-ui/react";
-import { Pencil, Plus, Trash, Eye, Download } from "lucide-react";
+import { Pencil, Plus, Trash, Eye, Download, CloudUpload, CheckCircle, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { uploadToDrive } from "../../hooks/useDriveSync";
 
 /* -------------------- Types -------------------- */
 type WorkItem = {
@@ -43,8 +44,10 @@ type AggregatedResource = {
 const truncate = (text?: string, max = 22) =>
   text && text.length > max ? `${text.slice(0, max)}...` : text;
 
-const formatLakhs = (value?: number | null) =>
-  value != null ? `₹${(value / 100000).toFixed(2)} L` : "-";
+const toIndianNum = (value?: number | null) =>
+  value != null
+    ? `₹${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value)}`
+    : "-";
 
 /* -------------------- Component -------------------- */
 const WorkList = () => {
@@ -56,6 +59,9 @@ const WorkList = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<AggregatedResource[]>([]);
   const [previewTitle, setPreviewTitle] = useState("");
+
+  type SyncStatus = "idle" | "syncing" | "success" | "error";
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
 
   const navigate = useNavigate();
 
@@ -160,26 +166,14 @@ const WorkList = () => {
 
     if (map.size === 0) {
       rows.push(
-        `"${work.work_name}",${work.tender_id ?? "-"},${
-          work.cost ? (work.cost / 100000).toFixed(2) : "-"
-        },${
-          work.final_amount
-            ? (work.final_amount / 100000).toFixed(2)
-            : "-"
-        },-,-,-,-`
+        `"${work.work_name}",${work.tender_id ?? "-"},${work.cost ?? "-"},${work.final_amount ?? "-"},-,-,-,-`
       );
     } else {
       let first = true;
       map.forEach((r) => {
         if (first) {
           rows.push(
-            `"${work.work_name}",${work.tender_id ?? "-"},${
-              work.cost ? (work.cost / 100000).toFixed(2) : "-"
-            },${
-              work.final_amount
-                ? (work.final_amount / 100000).toFixed(2)
-                : "-"
-            },"${r.resource_name}","${r.resource_type}",${r.quantity},"${r.resource_unit}"`
+            `"${work.work_name}",${work.tender_id ?? "-"},${work.cost ?? "-"},${work.final_amount ?? "-"},"${r.resource_name}","${r.resource_type}",${r.quantity},"${r.resource_unit}"`
           );
           first = false;
         } else {
@@ -197,7 +191,7 @@ const WorkList = () => {
   const handleDownloadAll = async () => {
     const rows: string[] = [];
     rows.push(
-      "Work Name,Tender ID,Cost (L),Final Amount (L),Resource,Type,Unit,Quantity"
+      "Work Name,Tender ID,Cost,Final Amount,Resource,Type,Unit,Quantity"
     );
 
     for (const work of data) {
@@ -219,7 +213,7 @@ const WorkList = () => {
   const handleDownloadRow = async (work: WorkItem) => {
     const rows: string[] = [];
     rows.push(
-      "Work Name,Tender ID,Cost (L),Final Amount (L),Resource,Type,Quantity,Unit"
+      "Work Name,Tender ID,Cost,Final Amount,Resource,Type,Quantity,Unit"
     );
 
     const workRows = await buildCSVForWork(work);
@@ -233,6 +227,30 @@ const WorkList = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `${work.work_name}-report.csv`;
     link.click();
+  };
+
+  /* -------------------- SYNC TO DRIVE -------------------- */
+  const handleSyncToDrive = async () => {
+    setSyncStatus("syncing");
+    try {
+      const rows: string[] = [];
+      rows.push("Work Name,Tender ID,Cost,Final Amount,Resource,Type,Unit,Quantity");
+
+      for (const work of data) {
+        const workRows = await buildCSVForWork(work);
+        rows.push(...workRows);
+      }
+
+      const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      await uploadToDrive(blob, "all-work-report.csv");
+
+      setSyncStatus("success");
+    } catch (err: any) {
+      console.error("Drive sync error:", err);
+      setSyncStatus("error");
+    } finally {
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
   };
 
   return (
@@ -249,6 +267,25 @@ const WorkList = () => {
             Download All
           </Button>
 
+          <Button
+            size="sm"
+            onClick={handleSyncToDrive}
+            disabled={syncStatus === "syncing" || data.length === 0}
+            colorScheme={
+              syncStatus === "success" ? "green" :
+              syncStatus === "error" ? "red" : "blue"
+            }
+            variant="outline"
+          >
+            {syncStatus === "syncing" && <Spinner size="xs" mr={1} />}
+            {syncStatus === "success" && <CheckCircle size={15} />}
+            {syncStatus === "error" && <XCircle size={15} />}
+            {syncStatus === "idle" && <CloudUpload size={15} />}
+            {syncStatus === "syncing" ? "Syncing..." :
+             syncStatus === "success" ? "Synced!" :
+             syncStatus === "error" ? "Failed" : "Sync to Drive"}
+          </Button>
+
           <Button size="sm" onClick={() => navigate("/workdetails/new")}>
             <Plus size={16} />
             Create
@@ -261,12 +298,12 @@ const WorkList = () => {
           <Table.Row>
             <Table.ColumnHeader>Work Name</Table.ColumnHeader>
             <Table.ColumnHeader>Tender ID</Table.ColumnHeader>
-            <Table.ColumnHeader textAlign="end">Cost (L)</Table.ColumnHeader>
+            <Table.ColumnHeader textAlign="end">Cost</Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">
               Excess/Less
             </Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">
-              Final Amount (L)
+              Final Amount
             </Table.ColumnHeader>
             <Table.ColumnHeader>Validity</Table.ColumnHeader>
             <Table.ColumnHeader>Actions</Table.ColumnHeader>
@@ -290,7 +327,7 @@ const WorkList = () => {
                 </Table.Cell>
                 <Table.Cell>{item.tender_id ?? "-"}</Table.Cell>
                 <Table.Cell textAlign="end">
-                  {formatLakhs(item.cost)}
+                  {toIndianNum(item.cost)}
                 </Table.Cell>
                 <Table.Cell textAlign="end">
                   {item.applied_difference
@@ -298,7 +335,7 @@ const WorkList = () => {
                     : "-"}
                 </Table.Cell>
                 <Table.Cell textAlign="end">
-                  {formatLakhs(item.final_amount)}
+                  {toIndianNum(item.final_amount)}
                 </Table.Cell>
                 <Table.Cell>{item.validity ?? "-"}</Table.Cell>
                 <Table.Cell>

@@ -38,6 +38,12 @@ type BillRow = {
 };
 
 
+const toIndianNum = (value: number | string | null | undefined): string => {
+  const num = Number(value);
+  if (value === "" || value === null || value === undefined || isNaN(num)) return "";
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(num);
+};
+
 export default function WorkDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -52,6 +58,7 @@ export default function WorkDetails() {
   const [workName, setWorkName] = useState("");
   const [tenderId, setTenderId] = useState<number | null>(null);
   const [cost, setCost] = useState<number | null>(null);
+  const [costDisplay, setCostDisplay] = useState("");
   const [appliedDifference, setAppliedDifference] = useState<number | null>(
     null
   );
@@ -157,6 +164,7 @@ export default function WorkDetails() {
     setWorkName(w.work_name ?? "");
     setTenderId(w.tender_id);
     setCost(w.cost);
+    setCostDisplay(w.cost != null ? toIndianNum(w.cost) : "");
     setAppliedDifference(w.applied_difference);
     setWorkDate(w.work_date ?? "");
     setValidity(w.validity);
@@ -460,14 +468,18 @@ export default function WorkDetails() {
                     Cost <span style={{ color: "red" }}>*</span>
                   </Field.Label>
                   <Input
-                    type="number"
-                    value={cost ?? ""}
+                    type="text"
+                    value={costDisplay}
                     onChange={(e) => {
-                      setCost(e.target.value ? Number(e.target.value) : null);
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      const num = raw ? Number(raw) : null;
+                      setCost(num);
+                      setCostDisplay(raw ? toIndianNum(raw) : "");
                       if (errors.cost) {
                         setErrors((prev) => ({ ...prev, cost: "" }));
                       }
                     }}
+                    placeholder="e.g. 1,50,000"
                   />
                   <Field.ErrorText>{errors.cost}</Field.ErrorText>
                 </Field.Root>
@@ -498,7 +510,7 @@ export default function WorkDetails() {
 
                 <Field.Root>
                   <Field.Label>Final Amount</Field.Label>
-                  <Input value={finalAmount} readOnly />
+                  <Input value={toIndianNum(finalAmount)} readOnly />
                 </Field.Root>
               </SimpleGrid>
 
@@ -711,9 +723,9 @@ export default function WorkDetails() {
                 bg="gray.50"
               >
                 <Stack gap={1}>
-                  <Box>Submitted: <strong>{financeTotals.submitted.toFixed(2)}</strong></Box>
-                  <Box>Approved: <strong>{financeTotals.approved.toFixed(2)}</strong></Box>
-                  <Box>Pending: <strong>{financeTotals.pending.toFixed(2)}</strong></Box>
+                  <Box>Submitted: <strong>{toIndianNum(financeTotals.submitted)}</strong></Box>
+                  <Box>Approved: <strong>{toIndianNum(financeTotals.approved)}</strong></Box>
+                  <Box>Pending: <strong>{toIndianNum(financeTotals.pending)}</strong></Box>
                 </Stack>
               </Box>
             </HStack>
@@ -786,7 +798,7 @@ export default function WorkDetails() {
                           </Table.Cell>
 
                           <Table.Cell>
-                            <Input value={row.pending_amount} readOnly />
+                            <Input value={toIndianNum(row.pending_amount)} readOnly />
                           </Table.Cell>
 
                           <Table.Cell>
